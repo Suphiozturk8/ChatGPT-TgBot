@@ -34,7 +34,9 @@ def chat_gpt(text):
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
-        return data.get("message", "No response received!")
+        return data.get(
+            "message", "No response received!"
+        )
     except requests.exceptions.RequestException as e:
         print(f"HTTP Error: {e}")
         return "HTTP Error!"
@@ -87,7 +89,11 @@ def collect_messages(user_id, message_text):
 
 def is_reply_to_bot() -> filters.Filter:
     async def func(_, client: Client, message: Message) -> bool:
-        return message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.id == client.me.id
+        return (
+            message.reply_to_message and
+            message.reply_to_message.from_user and
+            message.reply_to_message.from_user.id == client.me.id
+        )
 
     return filters.create(func, name="is_reply_to_bot")
 
