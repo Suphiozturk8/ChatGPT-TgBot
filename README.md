@@ -51,7 +51,8 @@ Once the bot is running, you can interact with it using the following commands:
 
 - `/start`: Sends a welcome message.
 - `/help`: Sends a help message.
-- `/resetchat`: Resets your chat history.
+- `/createchat`: Create a new chat session to save your messages.
+- `/deletechat`: Delete an existing chat session.
 
 The bot also responds to direct messages and provides AI-assisted replies.
 

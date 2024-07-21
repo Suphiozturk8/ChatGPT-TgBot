@@ -1,4 +1,3 @@
-
 import json
 import html
 import asyncio
@@ -10,7 +9,6 @@ from pyrogram.types import Message
 
 from config import Config
 
-
 app = Client(
     "my_app",
     api_id=Config.API_ID,
@@ -18,15 +16,12 @@ app = Client(
     bot_token=Config.BOT_TOKEN
 )
 
-
 loop = asyncio.get_event_loop()
-
 
 def reset_json_files():
     for file in ["data.json", "timer.json"]:
         with open(file, "w") as f:
             f.write("{}")
-
 
 def chat_gpt(text):
     url = Config.API_BASE_URL + text
@@ -43,7 +38,6 @@ def chat_gpt(text):
     except json.decoder.JSONDecodeError:
         return "Invalid JSON response."
 
-
 def timer_set(user_id, timer, time_type, time_value):
     delta = datetime.now() + (
         timedelta(minutes=time_value)
@@ -56,7 +50,6 @@ def timer_set(user_id, timer, time_type, time_value):
         "min": delta.minute, "s": delta.second
     }
 
-
 def is_timer_expired(user_id, timer):
     if user_id in timer:
         expiry_time = datetime(
@@ -67,8 +60,7 @@ def is_timer_expired(user_id, timer):
         return datetime.now() > expiry_time
     return True
 
-
-def collect_messages(user_id, message_text):
+def collect_messages(user_id, message_text, save=False):
     with open("data.json", "r") as f:
         data = json.load(f)
 
@@ -78,14 +70,18 @@ def collect_messages(user_id, message_text):
     data[user_id]["messages"].append(message_text)
     data[user_id]["count"] += 1
 
-    if data[user_id]["count"] >= 10:
-        data[user_id] = {"messages": [], "count": 0}
-    
-    with open("data.json", "w") as f:
-        json.dump(data, f, indent=4)
-    
-    return "\n".join(data[user_id]["messages"])
+    combined_message = "\n".join(data[user_id]["messages"])
 
+    if save:
+        if data[user_id]["count"] >= 10:
+            data[user_id] = {"messages": [], "count": 0}
+        with open("data.json", "w") as f:
+            json.dump(data, f, indent=4)
+    else:
+        data[user_id]["messages"].pop()
+        data[user_id]["count"] -= 1
+
+    return combined_message
 
 def is_reply_to_bot() -> filters.Filter:
     async def func(_, client: Client, message: Message) -> bool:
@@ -97,7 +93,6 @@ def is_reply_to_bot() -> filters.Filter:
 
     return filters.create(func, name="is_reply_to_bot")
 
-
 @app.on_message(filters.command("start"))
 async def start(_, message: Message):
     await message.reply(
@@ -108,7 +103,6 @@ async def start(_, message: Message):
         "How can I help you?"
     )
 
-
 @app.on_message(filters.command("help"))
 async def help(_, message: Message):
     await message.reply(
@@ -116,30 +110,57 @@ async def help(_, message: Message):
         "You can interact with me using the following commands:\n\n"
         "/start - Start me and see the welcome message.\n"
         "/help - See this help message.\n"
-        "/resetchat - Reset your message history.\n\n"
+        "/createchat - Create a new chat session to save your messages.\n"
+        "/deletechat - Delete an existing chat session.\n\n"
         "If you have any questions or requests, just send a message.\n"
         "I am here to answer your questions!"
     )
 
-
-@app.on_message(filters.command("resetchat"))
-async def reset(_, message: Message):
+@app.on_message(filters.command("createchat"))
+async def create_chat(_, message: Message):
     user_id = str(message.from_user.id)
+
     with open("data.json", "r") as f:
         data = json.load(f)
-    
-    if user_id not in data or data[user_id]["count"] == 0:
-        return await message.reply(
-            "You do not have any saved data."
+
+    if user_id in data and data[user_id].get("save", False):
+        await message.reply(
+            "You already have an active chat session."
+        )
+    else:
+        data[user_id] = {
+            "messages": [], "count": 0, "save": True
+        }
+
+        with open("data.json", "w") as f:
+            json.dump(data, f, indent=4)
+
+        await message.reply(
+            "New chat session created and your messages will now be saved."
         )
 
-    data[user_id] = {"messages": [], "count": 0}
+@app.on_message(filters.command("deletechat"))
+async def delete_chat(_, message: Message):
+    user_id = str(message.from_user.id)
+
+    with open("data.json", "r") as f:
+        data = json.load(f)
+
+    if user_id not in data or not data[user_id].get("save", False):
+        return await message.reply(
+            "You do not have an active chat session."
+        )
+
+    data[user_id] = {
+        "messages": [], "count": 0, "save": False
+    }
+
     with open("data.json", "w") as f:
         json.dump(data, f, indent=4)
-    await message.reply(
-        "Your message history has been reset."
-    )
 
+    await message.reply(
+        "Chat session deleted and your messages will no longer be saved."
+    )
 
 @app.on_message(
     filters.text & (is_reply_to_bot() | filters.private)
@@ -147,16 +168,21 @@ async def reset(_, message: Message):
 async def handle_message(client: Client, message: Message):
     user_id = str(message.from_user.id)
 
+    with open("data.json", "r") as f:
+        data = json.load(f)
+
+    save_messages = data.get(user_id, {}).get("save", False)
+
     with open("timer.json", "r") as f:
         timer = json.load(f)
 
     if is_timer_expired(user_id, timer):
-        timer_set(user_id, timer, "min", 0.5)
+        timer_set(user_id, timer, "min", 0.4)
         await client.send_chat_action(
             message.chat.id, enums.ChatAction.TYPING
         )
         combined_message = collect_messages(
-            user_id, message.text
+            user_id, message.text, save=save_messages
         )
         response = chat_gpt(combined_message)
         await message.reply(
@@ -187,7 +213,6 @@ async def main():
     print("\nBot is stopping...")
     await app.stop()
     print("\nBot stopped.")
-
 
 if __name__ == "__main__":
     loop.run_until_complete(main())
