@@ -136,8 +136,7 @@ async def reset(_, message: Message):
 
 
 @app.on_message(
-    filters.text
-    & (is_reply_to_bot() | filters.private)
+    filters.text & (is_reply_to_bot() | filters.private)
 )
 async def handle_message(client: Client, message: Message):
     user_id = str(message.from_user.id)
@@ -156,7 +155,8 @@ async def handle_message(client: Client, message: Message):
         response = chat_gpt(combined_message)
         await message.reply(
             html.escape(response),
-            parse_mode=enums.ParseMode.MARKDOWN
+            parse_mode=enums.ParseMode.MARKDOWN,
+            disable_web_page_preview=True
         )
 
         with open("timer.json", "w") as f:
