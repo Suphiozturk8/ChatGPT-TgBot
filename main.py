@@ -28,6 +28,7 @@ def chat_gpt(text):
     try:
         response = requests.get(url)
         response.raise_for_status()
+        print(f"Response Content: {response.content}")
         data = response.json()
         return data.get(
             "message", "No response received!"
@@ -70,7 +71,9 @@ def collect_messages(user_id, message_text, save=False):
     data[user_id]["messages"].append(message_text)
     data[user_id]["count"] += 1
 
-    combined_message = "\n".join(data[user_id]["messages"])
+    combined_message = "\n".join(
+        data[user_id]["messages"]
+    )
 
     if save:
         if data[user_id]["count"] >= 10:
